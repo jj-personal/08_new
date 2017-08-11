@@ -1,0 +1,101 @@
+---
+title: "Course 8 Prediction Assignment"
+author: "Jianjun Ge"
+date: "August 11, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Summary
+
+This is the course 8 assignment poject. The goal of this project is to use data from accelerometers on the belt, forearm, arm, etc to predict the manner in which six participants did the excise. 
+
+
+## Load & Explore Data
+
+```{r, results='hide'}
+library(randomForest)
+library(caret)
+pml.training <- read.csv("../08/pml-training.csv", header = TRUE)
+dim(pml.training)
+str(pml.training)
+barplot(table(pml.training$classe), 
+        main = "Number of Observations for Each Class", col = "blue")
+
+```
+
+## Preprocessing Data
+
+The trainning data appear to have lots of NA and empty observations. 
+The first step is to find out the number of NA or empty obs in each column. 
+
+```{r}
+pml.training[pml.training == ""] <- NA
+pml.na <- apply(pml.training, 2, function(y) sum(is.na(y)))
+
+```
+
+Then, columns with more than 1000 NA/empty are removed. 
+The beginning 6 columns are also removed for modeling because user_name and recording time related variables are not likely to be useful for predicting excercise manners. 
+
+```{r}
+pml.naremov <- pml.training[, pml.na < 1000]
+pml.new <- pml.naremov[,-(1:6)]
+dim(pml.new)
+
+```
+
+## Random Forest Modeling
+
+Random forest is chosen because of the relatively large number of observations and features of this dataset. RF is easy to train and can provide relative importance ranking of each predictors. RF is often used as benchmark models.
+
+The trainning dataset is first broken into two parts: trainning (70%) and validation (30%).
+
+```{r}
+train.ind <- sample(c(1:2), dim(pml.new)[1], replace = T, prob = c(0.7,0.3))
+pml.new.train <- pml.new[train.ind == 1, ]
+pml.new.valid <- pml.new[train.ind == 2, ]
+table(pml.new.valid$classe)
+
+```
+
+Run RF on trainning data:
+```{r}
+rf.1 <- randomForest(classe ~ ., data=pml.new.train)
+rf.1
+
+```
+
+Importance of predictors from this RF model:
+```{r}
+varImpPlot(rf.1, main = "Importance of Predictors")
+
+```
+This plot shows that "num_window", "roll_belt", and "yaw_belt" are top three most important variables in predicting exercise manner classes.  
+
+
+Cross validation using the rest of the trainning data (30%):
+```{r}
+pred <- predict(rf.1, pml.new.valid)
+table(pred, pml.new.valid$classe)
+confusionMatrix(pred, pml.new.valid$classe)
+
+```
+
+The Out Of Bag estimate of error rate is 0.28%, which is very low. Using cross-validation, the overall accuracy is 0.9976, which is very high. The reported Kappa coefficient is also very high 0.997.
+
+## Prediction Using 20 Test Cases
+```{r}
+pml.testing <- read.csv("../08/pml-testing.csv", header = TRUE)
+pred.2 <- predict(rf.1, pml.testing)
+pred.2
+
+```
+
+
+
+
+
